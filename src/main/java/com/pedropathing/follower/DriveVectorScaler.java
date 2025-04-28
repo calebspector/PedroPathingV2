@@ -17,6 +17,7 @@ import com.pedropathing.pathgen.Vector;
 public class DriveVectorScaler {
     // This is ordered left front, left back, right front, right back. These are also normalized.
     private Vector[] mecanumVectors;
+    private Vector[] servoDirections;
     private double maxPowerScaling = 1;
 
     /**
@@ -35,6 +36,11 @@ public class DriveVectorScaler {
                 new Vector(copiedFrontLeftVector.getMagnitude(), 2*Math.PI-copiedFrontLeftVector.getTheta()),
                 new Vector(copiedFrontLeftVector.getMagnitude(), 2*Math.PI-copiedFrontLeftVector.getTheta()),
                 new Vector(copiedFrontLeftVector.getMagnitude(), copiedFrontLeftVector.getTheta())};
+        servoDirections = new Vector[]{
+            new Vector(1,copiedFrontLeftVector.getTheta()),
+            new Vector(1,2*Math.PI-copiedFrontLeftVector.getTheta()),
+            new Vector(1,2*Math.PI-copiedFrontLeftVector.getTheta()),
+            new Vector(1,copiedFrontLeftVector.getTheta())};
     }
 
     /**
@@ -55,7 +61,7 @@ public class DriveVectorScaler {
      *                     much power to allocate to each wheel.
      * @return this returns an Array of doubles with a length of 4, which contains the wheel powers.
      */
-    public double[] getDrivePowers(Vector correctivePower, Vector headingPower, Vector pathingPower, double robotHeading) {
+    public double[][] getDrivePowers(Vector correctivePower, Vector headingPower, Vector pathingPower, double robotHeading) {
         // clamps down the magnitudes of the input vectors
         if (correctivePower.getMagnitude() > maxPowerScaling) correctivePower.setMagnitude(maxPowerScaling);
         if (headingPower.getMagnitude() > maxPowerScaling) headingPower.setMagnitude(maxPowerScaling);
@@ -63,9 +69,11 @@ public class DriveVectorScaler {
 
         // the powers for the wheel vectors
         double [] wheelPowers = new double[4];
+        double [] servoDirections = new double[4];
 
         // This contains a copy of the mecanum wheel vectors
         Vector[] mecanumVectorsCopy = new Vector[4];
+        Vector[] servoDirectionsCopy = new Vector[4];
 
         // this contains the pathing vectors, one for each side (heading control requires 2)
         Vector[] truePathingVectors = new Vector[2];
@@ -108,14 +116,20 @@ public class DriveVectorScaler {
         for (int i = 0; i < mecanumVectorsCopy.length; i++) {
             // this copies the vectors from mecanumVectors but creates new references for them
             mecanumVectorsCopy[i] = MathFunctions.copyVector(mecanumVectors[i]);
+            servoDirectionsCopy[i] = MathFunctions.copyVector(servoDirections[i]);
 
-            mecanumVectorsCopy[i].rotateVector(robotHeading);
+            //mecanumVectorsCopy[i].rotateVector(robotHeading);
         }
 
-        wheelPowers[0] = (mecanumVectorsCopy[1].getXComponent()*truePathingVectors[0].getYComponent() - truePathingVectors[0].getXComponent()*mecanumVectorsCopy[1].getYComponent()) / (mecanumVectorsCopy[1].getXComponent()*mecanumVectorsCopy[0].getYComponent() - mecanumVectorsCopy[0].getXComponent()*mecanumVectorsCopy[1].getYComponent());
-        wheelPowers[1] = (mecanumVectorsCopy[0].getXComponent()*truePathingVectors[0].getYComponent() - truePathingVectors[0].getXComponent()*mecanumVectorsCopy[0].getYComponent()) / (mecanumVectorsCopy[0].getXComponent()*mecanumVectorsCopy[1].getYComponent() - mecanumVectorsCopy[1].getXComponent()*mecanumVectorsCopy[0].getYComponent());
-        wheelPowers[2] = (mecanumVectorsCopy[3].getXComponent()*truePathingVectors[1].getYComponent() - truePathingVectors[1].getXComponent()*mecanumVectorsCopy[3].getYComponent()) / (mecanumVectorsCopy[3].getXComponent()*mecanumVectorsCopy[2].getYComponent() - mecanumVectorsCopy[2].getXComponent()*mecanumVectorsCopy[3].getYComponent());
-        wheelPowers[3] = (mecanumVectorsCopy[2].getXComponent()*truePathingVectors[1].getYComponent() - truePathingVectors[1].getXComponent()*mecanumVectorsCopy[2].getYComponent()) / (mecanumVectorsCopy[2].getXComponent()*mecanumVectorsCopy[3].getYComponent() - mecanumVectorsCopy[3].getXComponent()*mecanumVectorsCopy[2].getYComponent());
+        wheelPowers[0] = (mecanumVectorsCopy[0].getMagnitude()+truePathingVectors[0].getMagnitude());
+        wheelPowers[1] = (mecanumVectorsCopy[1].getMagnitude()+truePathingVectors[0].getMagnitude());
+        wheelPowers[2] = (mecanumVectorsCopy[2].getMagnitude()+truePathingVectors[1].getMagnitude());
+        wheelPowers[3] = (mecanumVectorsCopy[3].getMagnitude()+truePathingVectors[1].getMagnitude());
+
+        servoDirections[0].setTheta(pathingPower.getTheta());
+        servoDirections[1].setTheta(2*Math.PI - pathingPower.getTheta());
+        servoDirections[2].setTheta(2*Math.PI - pathingPower.getTheta());
+        servoDirections[3].setTheta(pathingPower.getTheta());
 
         double wheelPowerMax = Math.max(Math.max(Math.abs(wheelPowers[0]), Math.abs(wheelPowers[1])), Math.max(Math.abs(wheelPowers[2]), Math.abs(wheelPowers[3])));
         if (wheelPowerMax > maxPowerScaling) {
@@ -125,7 +139,7 @@ public class DriveVectorScaler {
             wheelPowers[3] = (wheelPowers[3] / wheelPowerMax) * maxPowerScaling;
         }
 
-        return wheelPowers;
+        return new Vector[][]{wheelPowers,servoDirections};
     }
 
     /**
